@@ -93,3 +93,70 @@ bool UserSystem::registerUser()
         return false;
     }
 }
+
+string UserSystem::loginUser()
+{
+    User u;
+
+    cout << "\n=== LOGIN ===\n";
+
+    cout << "Enter username: ";
+    cin >> u.username;
+
+    cout << "Enter password: ";
+    cin >> u.password;
+
+    try
+    {
+        sql::mysql::MySQL_Driver* driver;
+        sql::Connection* con;
+
+        driver = sql::mysql::get_mysql_driver_instance();
+        con = driver->connect(
+            "tcp://127.0.0.1:3306",
+            "root",
+            "root"
+        );
+
+        con->setSchema("connectly");
+
+        sql::PreparedStatement* stmt =
+            con->prepareStatement(
+                "SELECT username FROM users "
+                "WHERE username = ? AND password = ?"
+            );
+
+        stmt->setString(1, u.username);
+        stmt->setString(2, u.password);
+
+        sql::ResultSet* result = stmt->executeQuery();
+
+        if (result->next())
+        {
+            cout << "Login successful!\n";
+
+            string username = result->getString("username");
+
+            delete result;
+            delete stmt;
+            delete con;
+
+            return username;
+        }
+
+        cout << "Invalid username or password.\n";
+
+        delete result;
+        delete stmt;
+        delete con;
+
+        return "";
+    }
+    catch (sql::SQLException& e)
+    {
+        cout << "Database error: "
+             << e.what() << '\n';
+
+        return "";
+    }
+}
