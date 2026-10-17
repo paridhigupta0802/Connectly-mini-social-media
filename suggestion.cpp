@@ -40,3 +40,13 @@ void sortCandidates(CandidateNode*& head)
         }
     }
 }
+
+void clearVisited(VisitedNode*& head)
+{
+    while(head!=nullptr)
+    {
+        VisitedNode* temp =head;
+        head=head->next;
+        delete temp;
+    }
+}
