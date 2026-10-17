@@ -74,3 +74,74 @@ void clearCandidates(CandidateNode*& head)
         delete temp;
     }
 }
+
+void FriendSuggestion::suggestTopK(SocialGraph& graph,const string& nm,int 5)
+{
+    if (graph.findPerson(nm)==nullptr)
+    {
+        cout<<"User does not exist in the social graph.\n";
+        return;
+    }
+
+    Queue q;
+    VisitedNode* v= nullptr;
+    CandidateNode* c = nullptr;
+
+  
+    q.enqueue({nm,0});
+    addVisited(v,nm);
+
+    cout << "\n===== FRIEND SUGGESTIONS =====\n";
+    cout << "User: " << nm << "\n\n";
+
+  
+    while(!q.isEmpty())
+    {
+        BFSNode current;
+        if (!q.dequeue(current))
+            break;
+
+        if (current.distance == 2)
+        {
+            int mutualCount=countMutualFriends(graph,nm,current.username);
+            addCandidate(c,current.username,mutualCount);
+            continue;
+        }
+
+        PersonNode* person=graph.findPerson(current.username);
+        if (person==nullptr)
+            continue;
+        FriendNode* friendNode=person->friends;
+
+        while(friendNode!=nullptr)
+        {
+            string friendUsername = friendNode->username;
+            if (!isVisited(v,friendUsername))
+            {
+                addVisited(v,friendUsername);
+                q.enqueue({friendUsername,current.distance + 1});
+            }
+            friendNode=friendNode->next;
+        }
+    }
+
+    sortCandidates(c);
+
+    int displayed = 0;
+    CandidateNode* current=c;
+
+    while(current!=nullptr&& displayed < 5)
+    {
+        cout<<displayed+1<< ". "<<current->username<<" (Mutual friends: "<<current->mutualCount<< ")\n";
+        displayed++;
+        current=current->next;
+    }
+
+    if (displayed==0)
+    {
+        cout<<"No friend suggestions available.\n";
+    }
+
+    clearVisited(v);
+    clearCandidates(c);
+}
