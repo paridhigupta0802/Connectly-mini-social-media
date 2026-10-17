@@ -30,6 +30,9 @@ class SocialGraph
         PersonNode* findPerson(const std::string& username);
         void addPerson(const std::string& username);
         bool addFriendship(const std::string& username1, const std::string& username2);
+        bool deleteFriendship(const std::string& username1, const std::string& username2);
+        void displayFriends(const std::string& username);
+        bool searchPerson(const std::string& username);
         bool loadGraph(const std::string& host, const std::string& dbUser, const std::string& dbPassword);
         void clear();               
 };
