@@ -50,3 +50,11 @@ void clearVisited(VisitedNode*& head)
         delete temp;
     }
 }
+
+void addVisited(VisitedNode* &head,string nm)
+{
+    VisitedNode* node=new VisitedNode;
+    node->username=nm;
+    node->next=head;
+    head=node;
+}
