@@ -16,14 +16,27 @@ struct CandidateNode
     int mutualCount;
     CandidateNode* next;
 };
-bool isVisited(VisitedNode* head,string nm)
-{
-    while (head!= nullptr)
-    {
-        if (head->username == nm)
-            return true;
-        head=head->next;
-    }
-    return false;
-}
 
+
+void sortCandidates(CandidateNode*& head)
+{
+    if (head==nullptr)
+        return;
+
+    for (CandidateNode* i= head;i!=nullptr;i=i->next)
+    {
+        for (CandidateNode* j=i->next;j!=nullptr;j=j->next)
+        {
+            if (j->mutualCount>i->mutualCount)
+            {
+                string tempUsername = i->username;
+                i->username = j->username;
+                j->username = tempUsername;
+
+                int tempCount = i->mutualCount;
+                i->mutualCount = j->mutualCount;
+                j->mutualCount = tempCount;
+            }
+        }
+    }
+}
