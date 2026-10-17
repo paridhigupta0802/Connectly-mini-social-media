@@ -64,3 +64,13 @@ void addCandidate(CandidateNode*& head,const string& username,int mutualCount)
     }
     p->next=temp;
 }
+
+void clearCandidates(CandidateNode*& head)
+{
+    while (head != nullptr)
+    {
+        CandidateNode* temp = head;
+        head = head->next;
+        delete temp;
+    }
+}
