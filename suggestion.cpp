@@ -46,3 +46,21 @@ int countMutualFriends(SocialGraph& graph,const string& unm,const string& cnm)
     return count;
 }
 
+void addCandidate(CandidateNode*& head,const string& username,int mutualCount)
+{
+    CandidateNode* temp=new CandidateNode;
+    temp->username=username;
+    temp->mutualCount=mutualCount;
+    temp->next=nullptr;
+    if(head==nullptr)
+    {
+        head=temp;
+        return;
+    }
+    CandidateNode* p=head;
+    while (p->next != nullptr)
+    {
+        p=p->next;
+    }
+    p->next=temp;
+}
