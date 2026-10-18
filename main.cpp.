@@ -1,7 +1,8 @@
 #include <iostream>
 #include <string>
-#include "SocialGraph.h"
+
 #include "auth.h"
+#include "SocialGraph.h"
 #include "suggestion.h"
 
 using namespace std;
@@ -12,124 +13,71 @@ int main()
     UserSystem userSystem;
     FriendSuggestion suggestion;
 
+    // MySQL connection details
     string host = "tcp://127.0.0.1:3306";
     string dbUser = "root";
     string dbPassword = "root";
 
-    // Load users and friendships from the database
+    // Load users and friendships from MySQL
+    cout << "Loading Connectly social graph...\n";
+
     if (!graph.loadGraph(host, dbUser, dbPassword))
     {
-        cout << "Failed to load data from database.\n";
+        cout << "Unable to load social graph. Exiting.\n";
         return 1;
     }
 
+    cout << "\n===== CONNECTLY =====\n";
+    cout << "1. Register\n";
+    cout << "2. Login\n";
+    cout << "3. Exit\n";
+    cout << "Enter your choice: ";
+
     int choice;
+    cin >> choice;
 
-    // FIRST MENU: Login / Register / Exit
-    while (true)
+    switch (choice)
     {
-        cout << "\n===== CONNECTLY =====\n";
-        cout << "1. Register\n";
-        cout << "2. Login\n";
-        cout << "3. Exit\n";
-        cout << "Enter your choice: ";
-        cin >> choice;
-
-        if (choice == 1)
+        case 1:
         {
             userSystem.registerUser(graph);
+            break;
         }
-        else if (choice == 2)
+
+        case 2:
         {
             string username = userSystem.loginUser();
 
             if (username.empty())
             {
-                cout << "Login failed. Please try again.\n";
-                continue;
+                cout << "Login failed. Returning to exit.\n";
+                break;
             }
 
-            cout << "\nWelcome to Connectly, " << username << "!\n";
+            int k;
 
-            // SECOND MENU: Available after login
-            while (true)
+            cout << "\nHow many friend suggestions do you want? ";
+            cin >> k;
+
+            if (cin.fail() || k <= 0)
             {
-                cout << "\n===== CONNECTLY MENU =====\n";
-                cout << "1. Add Friend\n";
-                cout << "2. Remove Friend\n";
-                cout << "3. Search Person\n";
-                cout << "4. Friend Suggestions\n";
-                cout << "5. Logout\n";
-                cout << "Enter your choice: ";
-                cin >> choice;
-
-                if (choice == 1)
-                {
-                    string friendName;
-
-                    cout << "Enter username to add as friend: ";
-                    cin >> friendName;
-
-                    if (graph.addFriendship(username, friendName))
-                    {
-                        cout << "Friend added successfully!\n";
-                    }
-                    else
-                    {
-                        cout << "Could not add friend.\n";
-                    }
-                }
-                else if (choice == 2)
-                {
-                    string friendName;
-
-                    cout << "Enter username to remove: ";
-                    cin >> friendName;
-
-                    if (graph.deleteFriendship(username, friendName))
-                    {
-                        cout << "Friend removed successfully!\n";
-                    }
-                    else
-                    {
-                        cout << "Could not remove friendship.\n";
-                    }
-                }
-                else if (choice == 3)
-                {
-                    string searchName;
-
-                    cout << "Enter username to search: ";
-                    cin >> searchName;
-
-                    if (!graph.searchPerson(searchName))
-                    {
-                        cout << "Person not found.\n";
-                    }
-                }
-                else if (choice == 4)
-                {
-                    suggestion.suggestTopK(graph, username);
-                }
-                else if (choice == 5)
-                {
-                    cout << "Logged out successfully.\n";
-                    break;
-                }
-                else
-                {
-                    cout << "Invalid choice. Please try again.\n";
-                }
+                cout << "Please enter a positive number for K.\n";
+                break;
             }
-        }
-        else if (choice == 3)
-        {
-            cout << "Thank you for using Connectly!\n";
+
+            suggestion.suggestTopK(graph, username, k);
             break;
         }
-        else
+
+        case 3:
         {
-            cout << "Invalid choice. Please try again.\n";
+            cout << "Exiting Connectly. Goodbye!\n";
+            break;
+        }
+
+        default:
+        {
+            cout << "Invalid choice.\n";
         }
     }
 
