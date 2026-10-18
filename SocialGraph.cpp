@@ -53,41 +53,25 @@ void SocialGraph::addFriendEdge(const std::string& username1,const std::string& 
     {
         return;
     }
-    bool found1=false;
-    bool found2=false;
 
-    FriendNode* current=person1->friends;
-    while(current != nullptr)
+    FriendNode* temp=person1->friends;
+    while(temp != nullptr)
     {
-        if(current->username == username2)
+        if(temp->username == username2)
         {
-            found1=true;
+            return;
         }
-        current=current->next;
+        temp=temp->next;
     }
-    current=person2->friends;
-    while(current != nullptr)
-    {
-        if(current->username == username1)
-        {
-            found2=true;
-        }
-        current=current->next;
-    }
-    if(!found1)
-    {
-        FriendNode* node1=new FriendNode;
-        node1->username=username2;
-        node1->next=person1->friends;
-        person1->friends=node1;
-    }
-    if(!found2)
-    {
-        FriendNode* node2=new FriendNode;
-        node2->username=username1;
-        node2->next=person2->friends;
-        person2->friends=node2;
-    }
+    FriendNode* node1=new FriendNode;
+    node1->username=username2;
+    node1->next=person1->friends;
+    person1->friends=node1;
+
+   FriendNode* node2=new FriendNode;
+    node2->username=username1;
+    node2->next=person2->friends;
+    person2->friends=node2;
     
 }
 
@@ -161,6 +145,63 @@ bool SocialGraph::addFriendship(const std::string& username1,const std::string& 
 
         return false;
     }
+}
+
+
+bool SocialGraph::searchPerson(const string& username)
+{
+    sql::Connection* con=nullptr;
+    sql::PreparedStatement* pstmt=nullptr;
+    sql::ResultSet* res=nullptr;
+
+    try
+    {
+        sql::mysql::MySQL_Driver* driver=sql::mysql::get_mysql_driver_instance();
+        con=driver->connect(dbHost,dbUser,dbPassword);
+        con->setSchema("connectly");
+        pstmt=con->prepareStatement("SELECT username FROM users WHERE username = ?");
+        pstmt->setString(1, username);        
+        res=pstmt->executeQuery();
+
+        while(res->next())
+        {
+            cout<<"Person found: "<<res->getString("username")<<endl;
+
+            delete res;
+            res=nullptr;
+            delete pstmt;
+            pstmt=nullptr;
+            delete con;
+            con=nullptr;
+
+            return true;
+        }
+
+        cout<<"Person not found.\n";
+        delete res;
+        res=nullptr;
+        delete pstmt;
+        pstmt=nullptr;
+        delete con;
+        con=nullptr;
+
+        return false;
+
+    }
+    catch(sql::SQLException& e)
+    {
+        cerr<<"MySQL error:"<<e.what()<<'\n';
+        
+        delete res;
+        res=nullptr;
+        delete pstmt;
+        pstmt=nullptr;
+        delete con;
+        con=nullptr;
+
+        return false;
+
+    }  
 }
 
 bool SocialGraph::loadGraph(const std::string& host, const std::string& user, const std::string& password)
