@@ -294,3 +294,112 @@ void SocialGraph::clear()
 
     people=nullptr;
 }
+
+bool SocialGraph::deleteFriendship(const std::string& username1,const std::string& username2)
+{
+        if(username1 == username2)
+    {
+        std::cout<<"Cannot delete friendship with yourself.\n";
+        return false;
+    }
+    
+    string first=username1;
+    string second=username2;
+    if(first > second)
+    {
+        string temp=first;
+        first=second;
+        second=temp;    
+    }
+    
+    sql::Connection* con=nullptr;
+    sql::PreparedStatement* pstmt=nullptr;
+
+    try
+    {
+        sql::mysql::MySQL_Driver* driver=sql::mysql::get_mysql_driver_instance();
+        con=driver->connect(dbHost,dbUser,dbPassword);
+        con->setSchema("connectly");
+        pstmt=con->prepareStatement("DELETE FROM friendships WHERE username = ? AND friend_username = ?");
+        pstmt->setString(1, first);        
+        pstmt->setString(2, second);
+
+        int rows=pstmt->executeUpdate();
+
+        delete pstmt;
+        pstmt=nullptr;
+
+        delete con;
+        con=nullptr;
+
+        if(rows == 0)
+        {
+            cout<<"Friendships not found";
+            return false;
+        }
+
+        PersonNode* person1=findPerson(username1);
+        PersonNode* person2=findPerson(username2);
+
+        if(person1 != nullptr )
+        {
+            FriendNode* current=person1->friends;
+            FriendNode* previous=nullptr;
+            while(current != nullptr)
+            {
+                if(current->username == username2)
+                {
+                    if(previous == nullptr)
+                    {
+                        person1->friends=current->next;
+                    }
+                    else
+                    {
+                        previous->next=current->next;
+                    }
+                    delete current;
+                    break;
+                }
+                previous=current;
+                current=current->next;
+            }
+        }
+
+         if(person2 != nullptr )
+        {
+            FriendNode* current=person2->friends;
+            FriendNode* previous=nullptr;
+            while(current != nullptr)
+            {
+                if(current->username == username1)
+                {
+                    if(previous == nullptr)
+                    {
+                        person2->friends=current->next;
+                    }
+                    else
+                    {
+                        previous->next=current->next;
+                    }
+                    delete current;
+                    break;
+                }
+                previous=current;
+                current=current->next;
+            }
+        }
+        cout<<"Friendship deleted successfully.\n";
+        return true;
+
+    }
+    catch(sql::SQLException& e)
+    {
+        cerr<<"MySQL error :"<<e.what()<<'\n';
+        delete pstmt;
+        pstmt=nullptr;
+        delete con;
+        con=nullptr;
+
+        return false;
+    }
+}
