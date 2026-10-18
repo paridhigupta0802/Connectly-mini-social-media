@@ -1,0 +1,137 @@
+#include <iostream>
+#include <string>
+#include "SocialGraph.h"
+#include "auth.h"
+#include "suggestion.h"
+
+using namespace std;
+
+int main()
+{
+    SocialGraph graph;
+    UserSystem userSystem;
+    FriendSuggestion suggestion;
+
+    string host = "tcp://127.0.0.1:3306";
+    string dbUser = "root";
+    string dbPassword = "root";
+
+    // Load users and friendships from the database
+    if (!graph.loadGraph(host, dbUser, dbPassword))
+    {
+        cout << "Failed to load data from database.\n";
+        return 1;
+    }
+
+    int choice;
+
+    // FIRST MENU: Login / Register / Exit
+    while (true)
+    {
+        cout << "\n===== CONNECTLY =====\n";
+        cout << "1. Register\n";
+        cout << "2. Login\n";
+        cout << "3. Exit\n";
+        cout << "Enter your choice: ";
+        cin >> choice;
+
+        if (choice == 1)
+        {
+            userSystem.registerUser(graph);
+        }
+        else if (choice == 2)
+        {
+            string username = userSystem.loginUser();
+
+            if (username.empty())
+            {
+                cout << "Login failed. Please try again.\n";
+                continue;
+            }
+
+            cout << "\nWelcome to Connectly, " << username << "!\n";
+
+            // SECOND MENU: Available after login
+            while (true)
+            {
+                cout << "\n===== CONNECTLY MENU =====\n";
+                cout << "1. Add Friend\n";
+                cout << "2. Remove Friend\n";
+                cout << "3. Search Person\n";
+                cout << "4. Friend Suggestions\n";
+                cout << "5. Logout\n";
+                cout << "Enter your choice: ";
+                cin >> choice;
+
+                if (choice == 1)
+                {
+                    string friendName;
+
+                    cout << "Enter username to add as friend: ";
+                    cin >> friendName;
+
+                    if (graph.addFriendship(username, friendName))
+                    {
+                        cout << "Friend added successfully!\n";
+                    }
+                    else
+                    {
+                        cout << "Could not add friend.\n";
+                    }
+                }
+                else if (choice == 2)
+                {
+                    string friendName;
+
+                    cout << "Enter username to remove: ";
+                    cin >> friendName;
+
+                    if (graph.deleteFriendship(username, friendName))
+                    {
+                        cout << "Friend removed successfully!\n";
+                    }
+                    else
+                    {
+                        cout << "Could not remove friendship.\n";
+                    }
+                }
+                else if (choice == 3)
+                {
+                    string searchName;
+
+                    cout << "Enter username to search: ";
+                    cin >> searchName;
+
+                    if (!graph.searchPerson(searchName))
+                    {
+                        cout << "Person not found.\n";
+                    }
+                }
+                else if (choice == 4)
+                {
+                    suggestion.suggestTopK(graph, username);
+                }
+                else if (choice == 5)
+                {
+                    cout << "Logged out successfully.\n";
+                    break;
+                }
+                else
+                {
+                    cout << "Invalid choice. Please try again.\n";
+                }
+            }
+        }
+        else if (choice == 3)
+        {
+            cout << "Thank you for using Connectly!\n";
+            break;
+        }
+        else
+        {
+            cout << "Invalid choice. Please try again.\n";
+        }
+    }
+
+    return 0;
+}
