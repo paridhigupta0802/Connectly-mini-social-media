@@ -295,6 +295,8 @@ void SocialGraph::clear()
     people=nullptr;
 }
 
+
+
 bool SocialGraph::deleteFriendship(const std::string& username1,const std::string& username2)
 {
         if(username1 == username2)
@@ -401,5 +403,58 @@ bool SocialGraph::deleteFriendship(const std::string& username1,const std::strin
         con=nullptr;
 
         return false;
+    }
+}
+
+
+void SocialGraph::displayFriends(const string& username)
+{
+    sql::Connection* con=nullptr;
+    sql::PreparedStatement* pstmt=nullptr;
+    sql::ResultSet* res=nullptr;
+
+    try
+    {
+        sql::mysql::MySQL_Driver* driver=sql::mysql::get_mysql_driver_instance();
+        con=driver->connect(dbHost,dbUser,dbPassword);
+        con->setSchema("connectly");
+        pstmt=con->prepareStatement(" SELECT CASE WHEN username = ? "  
+            " THEN friend_username ELSE username END AS friend_name "  
+            " FROM friendships "  " WHERE username = ? OR friend_username = ? ");
+        pstmt->setString(1, username);        
+        pstmt->setString(2, username);
+        pstmt->setString(3, username);
+        res=pstmt->executeQuery();
+
+        cout<<"\nFriends of "<<username<<":\n";
+        bool found=false;
+
+        while(res->next())
+        {
+            cout<<res->getString("friend_name")<<endl;
+            found=true;
+        }
+        if(!found)
+        {
+            cout<<"No friends found.\n";
+        }
+        delete res;
+        res=nullptr;
+        delete pstmt;
+        pstmt=nullptr;
+        delete con;
+        con=nullptr;
+    }
+    catch(sql::SQLException& e)
+    {
+        cerr<<"MySQL error:"<<e.what()<<'\n';
+        
+        delete res;
+        res=nullptr;
+        delete pstmt;
+        pstmt=nullptr;
+        delete con;
+        con=nullptr;
+
     }
 }
