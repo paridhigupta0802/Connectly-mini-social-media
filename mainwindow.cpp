@@ -1893,3 +1893,49 @@ QWidget *MainWindow::createRelationWidget(const std::string &user,
 
     return w;
 }
+QPushButton *MainWindow::createAvatar(const QString &name, int size)
+{
+    const auto &palette = avatarPalette();
+    const auto pair = palette[static_cast<int>(
+        qHash(name) % static_cast<size_t>(palette.size()))];
+
+    QPushButton *b = new QPushButton(name.left(1).toUpper());
+    b->setFixedSize(size, size);
+    b->setCursor(Qt::PointingHandCursor);
+    b->setFocusPolicy(Qt::NoFocus);
+
+    b->setStyleSheet(QString(
+        "QPushButton {"
+        "  background: qlineargradient(x1:0, y1:0, x2:1, y2:1,"
+        "              stop:0 %1, stop:1 %2);"
+        "  color: white; border: 3px solid white;"
+        "  border-radius: %3px; font-size: %4px; font-weight: bold;"
+        "  padding: 0;"
+        "}"
+        "QPushButton:hover { border: 3px solid #CFE0FA; }")
+        .arg(pair.first, pair.second)
+        .arg(size / 2)
+        .arg(static_cast<int>(size * 0.40)));
+
+    return b;
+}
+
+void MainWindow::clearLayout(QLayout *layout)
+{
+    if (!layout)
+        return;
+
+    while (QLayoutItem *item = layout->takeAt(0))
+    {
+        if (QWidget *w = item->widget())
+        {
+            w->hide();
+            w->deleteLater();
+        }
+        else if (QLayout *l = item->layout())
+        {
+            clearLayout(l);
+        }
+        delete item;
+    }
+}
