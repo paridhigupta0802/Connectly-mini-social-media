@@ -1,7 +1,8 @@
 #include "auth.h"
 
-#include <iostream>
+#include <cctype>
 #include <string>
+#include <memory>
 
 #include <jdbc/mysql_driver.h>
 #include <jdbc/mysql_connection.h>
@@ -11,168 +12,198 @@
 
 using namespace std;
 
-struct User
+
+// ================= PASSWORD HASHING =================
+
+string hashPassword(string password)
 {
-    string username;
-    string password;
-};
+    long long hash = 0;
+    int position = 1;
 
-
-UserSystem::UserSystem(){}
-bool UserSystem::registerUser(SocialGraph& graph)
-{
-    User u;
-    cout << "\n===REGISTER===\n";
-    cout << "Enter username: ";
-    cin >> u.username;
-    cout << "Enter password: ";
-    cin >> u.password;
-
-    if(u.username.empty() || u.password.empty())
+    for (unsigned char ch : password)
     {
-        cout<<"Username and password cannot be empty.\n";
-        return false;
+        hash = (hash * 31 + ch + position * position)
+               % 1000000007;
+
+        position++;
     }
 
-    sql::Connection* con=nullptr;
-    sql::PreparedStatement* checkStmt=nullptr;
-    sql::ResultSet* result=nullptr;
-    sql::PreparedStatement* insertStmt=nullptr;
+    return to_string(hash);
+}
+
+
+// ================= USER SYSTEM =================
+
+UserSystem::UserSystem() {}
+
+
+// ================= PASSWORD VALIDATION =================
+
+bool isValidPassword(const string& password)
+{
+    if (password.length() < 8)
+        return false;
+
+    bool hasUpper = false;
+    bool hasLower = false;
+    bool hasDigit = false;
+    bool hasSpecial = false;
+
+    for (char ch : password)
+    {
+        if (isupper(static_cast<unsigned char>(ch)))
+            hasUpper = true;
+
+        else if (islower(static_cast<unsigned char>(ch)))
+            hasLower = true;
+
+        else if (isdigit(static_cast<unsigned char>(ch)))
+            hasDigit = true;
+
+        else
+            hasSpecial = true;
+    }
+
+    return hasUpper && hasLower && hasDigit && hasSpecial;
+}
+
+
+// ================= REGISTRATION =================
+
+bool UserSystem::registerUser(
+    SocialGraph& graph,
+    const string& username,
+    const string& password,
+    const string& interests)
+{
+    // Check empty inputs
+    if (username.empty() || password.empty())
+        return false;
+
+    // Username cannot contain spaces
+    if (username.find_first_of(" \t\n") != string::npos)
+        return false;
+
+    // Validate password
+    if (!isValidPassword(password))
+        return false;
+
+    // Hash password
+    string hashedPassword = hashPassword(password);
 
     try
     {
-        sql::mysql::MySQL_Driver* driver = sql::mysql::get_mysql_driver_instance();
+        sql::mysql::MySQL_Driver* driver =
+            sql::mysql::get_mysql_driver_instance();
 
-        con = driver->connect("tcp://127.0.0.1:3306","root","root");
+        unique_ptr<sql::Connection> con(
+            driver->connect(
+                "tcp://127.0.0.1:3306",
+                "root",
+                "root"
+            )
+        );
+
         con->setSchema("connectly");
-        checkStmt =con->prepareStatement("SELECT username FROM users WHERE username = ?");
-        checkStmt->setString(1, u.username);
-        result = checkStmt->executeQuery();
+
+        // Check whether username already exists
+        unique_ptr<sql::PreparedStatement> checkStmt(
+            con->prepareStatement(
+                "SELECT username FROM users WHERE username = ?"
+            )
+        );
+
+        checkStmt->setString(1, username);
+
+        unique_ptr<sql::ResultSet> result(
+            checkStmt->executeQuery()
+        );
 
         if (result->next())
         {
-            cout << "Username already exists.\n";
-
-            delete result;
-            result=nullptr;
-            delete checkStmt;
-            checkStmt=nullptr;
-            delete con;
-            con=nullptr;
-
             return false;
         }
 
-        delete result;
-        result=nullptr;
+        result.reset();
+        checkStmt.reset();
 
-        delete checkStmt;
-        checkStmt=nullptr;
-        insertStmt =con->prepareStatement("INSERT INTO users (username, password) VALUES (?, ?)");
-        insertStmt->setString(1, u.username);
-        insertStmt->setString(2, u.password);
+        // Insert new user along with interests
+        unique_ptr<sql::PreparedStatement> insertStmt(
+            con->prepareStatement(
+                "INSERT INTO users (username, password, interests) "
+                "VALUES (?, ?, ?)"
+            )
+        );
+
+        insertStmt->setString(1, username);
+        insertStmt->setString(2, hashedPassword);
+        insertStmt->setString(3, interests);
 
         insertStmt->executeUpdate();
 
-        delete insertStmt;
-        insertStmt=nullptr;
+        // Add user to in-memory social graph
+        graph.addPerson(username);
 
-        delete con;
-        con=nullptr;
-
-        graph.addPerson(u.username);
-        cout<<"Registration Successful.\n";
         return true;
     }
     catch (sql::SQLException& e)
     {
-        cout << "Database error: "<< e.what() << '\n';
-
-        delete result;
-        result=nullptr;
-        delete checkStmt;
-        checkStmt=nullptr;
-        delete insertStmt;
-        insertStmt=nullptr;
-        delete con;
-        con=nullptr;
-
         return false;
     }
 }
 
-string UserSystem::loginUser()
+
+// ================= LOGIN =================
+
+string UserSystem::loginUser(
+    const string& username,
+    const string& password)
 {
-    string username, password;
+    if (username.empty() || password.empty())
+        return "";
 
-    cout << "\n=== LOGIN ===\n";
-
-    cout << "Enter username: ";
-    cin >> username;
-
-    cout << "Enter password: ";
-    cin >> password;
-
-    sql::Connection* con = nullptr;
-    sql::PreparedStatement* stmt = nullptr;
-    sql::ResultSet* res = nullptr;
+    // Hash entered password
+    string hashedPassword = hashPassword(password);
 
     try
     {
-        sql::mysql::MySQL_Driver* driver =sql::mysql::get_mysql_driver_instance();
+        sql::mysql::MySQL_Driver* driver =
+            sql::mysql::get_mysql_driver_instance();
 
-        con = driver->connect("tcp://127.0.0.1:3306","root","root");
+        unique_ptr<sql::Connection> con(
+            driver->connect(
+                "tcp://127.0.0.1:3306",
+                "root",
+                "root"
+            )
+        );
 
         con->setSchema("connectly");
 
-        stmt = con->prepareStatement("SELECT username FROM users WHERE username = ? AND password = ?");
+        // Verify username and password
+        unique_ptr<sql::PreparedStatement> stmt(
+            con->prepareStatement(
+                "SELECT username FROM users "
+                "WHERE username = ? AND password = ?"
+            )
+        );
 
         stmt->setString(1, username);
-        stmt->setString(2, password);
+        stmt->setString(2, hashedPassword);
 
-        res = stmt->executeQuery();
+        unique_ptr<sql::ResultSet> res(
+            stmt->executeQuery()
+        );
 
         if (res->next())
         {
-            string loggedInUser = res->getString("username");
-
-            cout << "Login successful! Welcome, "
-                 << loggedInUser << "!\n";
-
-            delete res;
-            res=nullptr;
-            delete stmt;
-            stmt=nullptr;
-            delete con;
-            con=nullptr;
-
-            return loggedInUser;
+            return res->getString("username");
         }
-        else
-        {
-            cout << "Invalid username or password.\n";
-        }
-
-        delete res;
-        res=nullptr;
-        delete stmt;
-        stmt=nullptr;
-        delete con;
-        con=nullptr;
 
         return "";
     }
     catch (sql::SQLException& e)
     {
-        cout << "Database error: " << e.what() << '\n';
-
-        delete res;
-        res=nullptr;
-        delete stmt;
-        stmt=nullptr;
-        delete con;
-        con=nullptr;
-
         return "";
     }
 }
