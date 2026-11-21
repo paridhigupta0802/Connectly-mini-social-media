@@ -629,3 +629,70 @@ QWidget *MainWindow::createDashboard()
 
     return dashboard;
 }
+QWidget *MainWindow::createTopBar(QWidget *dashboard)
+{
+    Q_UNUSED(dashboard);
+
+    QWidget *topbar = new QWidget();
+    topbar->setObjectName("topbar");
+    topbar->setFixedHeight(72);
+
+    QHBoxLayout *layout = new QHBoxLayout(topbar);
+    layout->setContentsMargins(24, 10, 24, 10);
+    layout->setSpacing(14);
+
+    QPushButton *logo = new QPushButton("Connectly");
+    logo->setObjectName("logoButton");
+    logo->setCursor(Qt::PointingHandCursor);
+    logo->setToolTip("Go to Home");
+    connect(logo, &QPushButton::clicked, this, &MainWindow::showHome);
+
+    searchBox = new QLineEdit();
+    searchBox->setObjectName("searchBox");
+    searchBox->setPlaceholderText("🔍  Search people on Connectly");
+    searchBox->setFixedWidth(440);
+    searchBox->setClearButtonEnabled(true);
+    searchBox->installEventFilter(this);
+
+    connect(searchBox, &QLineEdit::textChanged, this, &MainWindow::runSearch);
+    connect(searchBox, &QLineEdit::returnPressed, this, &MainWindow::runSearch);
+
+    
+    chatButton = new QPushButton("💬");
+    chatButton->setObjectName("chatButton");
+    chatButton->setCursor(Qt::PointingHandCursor);
+    chatButton->setToolTip("Open messages");
+    connect(chatButton, &QPushButton::clicked,
+            this, &MainWindow::showChatDialog);
+
+    
+    bellButton = new QPushButton("🔔");
+    bellButton->setObjectName("bellButton");
+    bellButton->setCursor(Qt::PointingHandCursor);
+    bellButton->setToolTip("Friend requests");
+    connect(bellButton, &QPushButton::clicked, this, &MainWindow::showHome);
+
+   
+    QPushButton *me = createAvatar(QString::fromStdString(loggedInUser), 44);
+    me->setToolTip("My profile");
+    connect(me, &QPushButton::clicked, this, [this]()
+    {
+        showProfile(loggedInUser);
+    });
+
+    QPushButton *logoutBtn = new QPushButton("Logout");
+    logoutBtn->setObjectName("logoutButton");
+    logoutBtn->setCursor(Qt::PointingHandCursor);
+    connect(logoutBtn, &QPushButton::clicked, this, &MainWindow::logout);
+
+    layout->addWidget(logo);
+    layout->addStretch(1);
+    layout->addWidget(searchBox);
+    layout->addStretch(1);
+    layout->addWidget(chatButton);
+    layout->addWidget(bellButton);
+    layout->addWidget(me);
+    layout->addWidget(logoutBtn);
+
+    return topbar;
+}
