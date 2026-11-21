@@ -1,85 +1,12 @@
-#include <iostream>
-#include <string>
+#include <QApplication>
+#include "mainwindow.h"
 
-#include "auth.h"
-#include "SocialGraph.h"
-#include "suggestion.h"
-
-using namespace std;
-
-int main()
+int main(int argc, char *argv[])
 {
-    SocialGraph graph;
-    UserSystem userSystem;
-    FriendSuggestion suggestion;
+    QApplication app(argc, argv);
 
-    // MySQL connection details
-    string host = "tcp://127.0.0.1:3306";
-    string dbUser = "root";
-    string dbPassword = "root";
+    MainWindow window;
+    window.show();
 
-    // Load users and friendships from MySQL
-    cout << "Loading Connectly social graph...\n";
-
-    if (!graph.loadGraph(host, dbUser, dbPassword))
-    {
-        cout << "Unable to load social graph. Exiting.\n";
-        return 1;
-    }
-
-    cout << "\n===== CONNECTLY =====\n";
-    cout << "1. Register\n";
-    cout << "2. Login\n";
-    cout << "3. Exit\n";
-    cout << "Enter your choice: ";
-
-    int choice;
-    cin >> choice;
-
-    switch (choice)
-    {
-        case 1:
-        {
-            userSystem.registerUser(graph);
-            break;
-        }
-
-        case 2:
-        {
-            string username = userSystem.loginUser();
-
-            if (username.empty())
-            {
-                cout << "Login failed. Returning to exit.\n";
-                break;
-            }
-
-            int k;
-
-            cout << "\nHow many friend suggestions do you want? ";
-            cin >> k;
-
-            if (cin.fail() || k <= 0)
-            {
-                cout << "Please enter a positive number for K.\n";
-                break;
-            }
-
-            suggestion.suggestTopK(graph, username, k);
-            break;
-        }
-
-        case 3:
-        {
-            cout << "Exiting Connectly. Goodbye!\n";
-            break;
-        }
-
-        default:
-        {
-            cout << "Invalid choice.\n";
-        }
-    }
-
-    return 0;
+    return app.exec();
 }
