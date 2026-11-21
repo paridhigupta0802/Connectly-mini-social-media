@@ -1826,3 +1826,70 @@ void MainWindow::pollServer()
     if (searchBox && !searchBox->text().trimmed().isEmpty())
         runSearch();
 }
+QWidget *MainWindow::createRelationWidget(const std::string &user,
+                                          const QString &addText)
+{
+    QWidget *w = new QWidget();
+    QHBoxLayout *l = new QHBoxLayout(w);
+    l->setContentsMargins(0, 0, 0, 0);
+    l->setSpacing(8);
+    l->setAlignment(Qt::AlignCenter);
+
+    auto makeBtn = [l](const QString &text, const char *objName,
+                       const QString &tip)
+    {
+        QPushButton *b = new QPushButton(text);
+        b->setObjectName(objName);
+        b->setCursor(Qt::PointingHandCursor);
+        b->setFocusPolicy(Qt::NoFocus);
+        if (!tip.isEmpty())
+            b->setToolTip(tip);
+        l->addWidget(b);
+        return b;
+    };
+
+    if (user == loggedInUser)
+        return w;
+
+    if (isFriend(user))
+    {
+        QPushButton *b = makeBtn("✓ Friends", "ghostBtn",
+                                 "Click to remove from friends");
+        connect(b, &QPushButton::clicked, this, [this, user]()
+        {
+            removeFriend(user);
+        });
+    }
+    else if (contains(incomingRequests, user))
+    {
+        QPushButton *accept = makeBtn("Accept", "primaryBtn", "");
+        QPushButton *reject = makeBtn("Reject", "ghostBtn", "");
+        connect(accept, &QPushButton::clicked, this, [this, user]()
+        {
+            acceptRequest(user);
+        });
+        connect(reject, &QPushButton::clicked, this, [this, user]()
+        {
+            rejectRequest(user);
+        });
+    }
+    else if (contains(outgoingRequests, user))
+    {
+        QPushButton *b = makeBtn("✓ Requested", "ghostBtn",
+                                 "Click to cancel your request");
+        connect(b, &QPushButton::clicked, this, [this, user]()
+        {
+            cancelRequest(user);
+        });
+    }
+    else
+    {
+        QPushButton *b = makeBtn(addText, "primaryBtn", "");
+        connect(b, &QPushButton::clicked, this, [this, user]()
+        {
+            sendRequest(user);
+        });
+    }
+
+    return w;
+}
