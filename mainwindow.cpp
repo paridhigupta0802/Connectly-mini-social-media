@@ -1634,3 +1634,43 @@ void MainWindow::runSearch()
     searchPopup->show();
     searchPopup->raise();
 }
+
+bool MainWindow::eventFilter(QObject *obj, QEvent *event)
+{
+    if (searchBox && obj == searchBox)
+    {
+        if (event->type() == QEvent::FocusOut)
+        {
+            QTimer::singleShot(220, this, [this]()
+            {
+                if (searchPopup && searchBox && !searchBox->hasFocus())
+                    searchPopup->hide();
+            });
+        }
+        else if (event->type() == QEvent::FocusIn)
+        {
+            if (!searchBox->text().trimmed().isEmpty())
+                runSearch();
+        }
+    }
+    return QMainWindow::eventFilter(obj, event);
+}
+
+
+bool MainWindow::isFriend(const std::string &name)
+{
+    std::vector<std::string> f = graph.getFriends(loggedInUser);
+    return std::find(f.begin(), f.end(), name) != f.end();
+}
+
+int MainWindow::mutualCount(const std::string &name)
+{
+    std::vector<std::string> a = graph.getFriends(loggedInUser);
+    std::vector<std::string> b = graph.getFriends(name);
+
+    int count = 0;
+    for (const std::string &x : a)
+        if (std::find(b.begin(), b.end(), x) != b.end())
+            ++count;
+    return count;
+}
