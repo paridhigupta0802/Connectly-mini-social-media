@@ -1120,6 +1120,301 @@ void MainWindow::showProfile(const std::string &user)
     populateProfile();
     dashboardPages->setCurrentWidget(profilePageWidget);
 }
+void MainWindow::populateHome()
+{
+    clearLayout(homeLayout);
+
+    const QString me = QString::fromStdString(loggedInUser);
+
+    // ----- Welcome banner -----
+    QFrame *banner = new QFrame();
+    banner->setObjectName("banner");
+    QVBoxLayout *bannerLayout = new QVBoxLayout(banner);
+    bannerLayout->setContentsMargins(28, 24, 28, 24);
+    bannerLayout->setSpacing(4);
+
+    QLabel *hello = new QLabel("Welcome back, " + me + " 👋");
+    hello->setStyleSheet(
+        "background: transparent; color: white;"
+        "font-size: 26px; font-weight: bold;");
+
+    QLabel *sub = new QLabel(
+        "See who's around, catch up with friends and grow your circle.");
+    sub->setStyleSheet(
+        "background: transparent; color: #DCE8FF; font-size: 14px;");
+
+    bannerLayout->addWidget(hello);
+    bannerLayout->addWidget(sub);
+    homeLayout->addWidget(banner);
+
+   
+    if (!incomingRequests.empty())
+    {
+        QLabel *reqTitle = new QLabel(
+            QString("Friend requests (%1)").arg(incomingRequests.size()));
+        reqTitle->setObjectName("sectionTitle");
+        homeLayout->addWidget(reqTitle);
+
+        for (const std::string &r : incomingRequests)
+        {
+            QString rname = QString::fromStdString(r);
+
+            QFrame *row = new QFrame();
+            row->setObjectName("card");
+
+            QHBoxLayout *rl = new QHBoxLayout(row);
+            rl->setContentsMargins(18, 14, 18, 14);
+            rl->setSpacing(14);
+
+            QPushButton *av = createAvatar(rname, 52);
+
+            QVBoxLayout *text = new QVBoxLayout();
+            text->setSpacing(0);
+
+            QPushButton *nameBtn = new QPushButton(rname);
+            nameBtn->setObjectName("nameButton");
+            nameBtn->setCursor(Qt::PointingHandCursor);
+
+            QLabel *sub = new QLabel(
+                QString::number(mutualCount(r)) +
+                " mutual friend(s)  ·  wants to connect with you");
+            sub->setObjectName("muted");
+
+            text->addWidget(nameBtn, 0, Qt::AlignLeft);
+            text->addWidget(sub);
+
+            rl->addWidget(av);
+            rl->addLayout(text, 1);
+            rl->addWidget(createRelationWidget(r, ""));   // Accept / Reject
+
+            connect(av, &QPushButton::clicked, this, [this, r]()
+            {
+                showProfile(r);
+            });
+            connect(nameBtn, &QPushButton::clicked, this, [this, r]()
+            {
+                showProfile(r);
+            });
+
+            homeLayout->addWidget(row);
+        }
+    }
+
+  
+    if (!outgoingRequests.empty())
+    {
+        QLabel *sentTitle = new QLabel("Sent requests");
+        sentTitle->setObjectName("sectionTitle");
+        homeLayout->addWidget(sentTitle);
+
+        QFrame *box = new QFrame();
+        box->setObjectName("card");
+        QVBoxLayout *bl = new QVBoxLayout(box);
+        bl->setContentsMargins(18, 12, 18, 12);
+        bl->setSpacing(8);
+
+        for (const std::string &r : outgoingRequests)
+        {
+            QString rname = QString::fromStdString(r);
+
+            QHBoxLayout *rl = new QHBoxLayout();
+            rl->setSpacing(12);
+
+            QPushButton *av = createAvatar(rname, 40);
+            QPushButton *nameBtn = new QPushButton(rname);
+            nameBtn->setObjectName("resultName");
+            nameBtn->setCursor(Qt::PointingHandCursor);
+
+            QLabel *pending = new QLabel("Waiting for response");
+            pending->setObjectName("muted");
+
+            QPushButton *cancel = new QPushButton("Cancel request");
+            cancel->setObjectName("dangerBtn");
+            cancel->setCursor(Qt::PointingHandCursor);
+            cancel->setFocusPolicy(Qt::NoFocus);
+
+            rl->addWidget(av);
+            rl->addWidget(nameBtn);
+            rl->addWidget(pending);
+            rl->addStretch(1);
+            rl->addWidget(cancel);
+
+            connect(av, &QPushButton::clicked, this, [this, r]()
+            {
+                showProfile(r);
+            });
+            connect(nameBtn, &QPushButton::clicked, this, [this, r]()
+            {
+                showProfile(r);
+            });
+            connect(cancel, &QPushButton::clicked, this, [this, r]()
+            {
+                cancelRequest(r);
+            });
+
+            bl->addLayout(rl);
+        }
+
+        homeLayout->addWidget(box);
+    }
+
+  
+    std::vector<std::string> friends = graph.getFriends(loggedInUser);
+
+    QLabel *friendsTitle = new QLabel("Your friends");
+    friendsTitle->setObjectName("sectionTitle");
+    homeLayout->addWidget(friendsTitle);
+
+    if (friends.empty())
+    {
+        QLabel *none = new QLabel(
+            "You don't have any friends yet — add someone from the "
+            "suggestions below or use the search bar.");
+        none->setObjectName("muted");
+        none->setWordWrap(true);
+        homeLayout->addWidget(none);
+    }
+    else
+    {
+        QScrollArea *row = new QScrollArea();
+        row->setFrameShape(QFrame::NoFrame);
+        row->setWidgetResizable(true);
+        row->setFixedHeight(128);
+        row->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+        QWidget *rowContent = new QWidget();
+        QHBoxLayout *rowLayout = new QHBoxLayout(rowContent);
+        rowLayout->setContentsMargins(2, 4, 2, 4);
+        rowLayout->setSpacing(22);
+
+        for (const std::string &f : friends)
+        {
+            QWidget *item = new QWidget();
+            QVBoxLayout *col = new QVBoxLayout(item);
+            col->setContentsMargins(0, 0, 0, 0);
+            col->setSpacing(6);
+
+            QString name = QString::fromStdString(f);
+
+            QPushButton *avatar = createAvatar(name, 74);
+            QLabel *label = new QLabel(name);
+            label->setAlignment(Qt::AlignCenter);
+            label->setStyleSheet(
+                "color: #34445E; font-size: 13px; font-weight: 600;");
+
+            col->addWidget(avatar, 0, Qt::AlignHCenter);
+            col->addWidget(label);
+
+            connect(avatar, &QPushButton::clicked, this, [this, f]()
+            {
+                showProfile(f);
+            });
+
+            rowLayout->addWidget(item);
+        }
+        rowLayout->addStretch();
+
+        row->setWidget(rowContent);
+        homeLayout->addWidget(row);
+    }
+
+  
+    QLabel *sugTitle = new QLabel("Suggested for you");
+    sugTitle->setObjectName("sectionTitle");
+    homeLayout->addWidget(sugTitle);
+
+    auto recommendations = suggestion.suggestTopK(graph, loggedInUser);
+
+    if (recommendations.empty())
+    {
+        QLabel *none = new QLabel("No new friend suggestions right now.");
+        none->setObjectName("muted");
+        homeLayout->addWidget(none);
+    }
+    else
+    {
+        QWidget *gridHost = new QWidget();
+        QGridLayout *grid = new QGridLayout(gridHost);
+        grid->setContentsMargins(0, 0, 0, 0);
+        grid->setSpacing(16);
+
+        int idx = 0;
+        for (const auto &person : recommendations)
+        {
+            std::string pname = person.username;
+            QString display = QString::fromStdString(pname);
+
+            QFrame *card = new QFrame();
+            card->setObjectName("card");
+
+            QVBoxLayout *cl = new QVBoxLayout(card);
+            cl->setContentsMargins(18, 20, 18, 18);
+            cl->setSpacing(6);
+
+            QPushButton *avatar = createAvatar(display, 80);
+            QPushButton *nameBtn = new QPushButton(display);
+            nameBtn->setObjectName("nameButton");
+            nameBtn->setCursor(Qt::PointingHandCursor);
+
+            QLabel *mutual = new QLabel(
+                QString::number(person.mutualCount) + " mutual friend(s)");
+            mutual->setObjectName("muted");
+            mutual->setAlignment(Qt::AlignCenter);
+
+            QString sharedText;
+            if (person.sharedInterests.empty())
+            {
+                sharedText = "Shared interests: None";
+            }
+            else
+            {
+                QStringList sharedNames;
+                for (const std::string &interest : person.sharedInterests)
+                    sharedNames << QString::fromStdString(interest);
+
+                sharedText = "Shared interests: " + sharedNames.join(", ");
+            }
+
+            QLabel *interestsLabel = new QLabel(sharedText);
+            interestsLabel->setObjectName("muted");
+            interestsLabel->setWordWrap(true);
+            interestsLabel->setAlignment(Qt::AlignCenter);
+
+            QLabel *score = new QLabel(
+                "Suggestion score: " +
+                QString::number(person.mutualCount + person.interestCount));
+            score->setObjectName("muted");
+            score->setAlignment(Qt::AlignCenter);
+
+            cl->addWidget(avatar, 0, Qt::AlignHCenter);
+            cl->addWidget(nameBtn);
+            cl->addWidget(mutual);
+            cl->addWidget(interestsLabel);
+            cl->addWidget(score);
+            cl->addSpacing(8);
+            cl->addWidget(createRelationWidget(pname, "Add Friend"));
+
+            connect(avatar, &QPushButton::clicked, this, [this, pname]()
+            {
+                showProfile(pname);
+            });
+            connect(nameBtn, &QPushButton::clicked, this, [this, pname]()
+            {
+                showProfile(pname);
+            });
+
+            grid->addWidget(card, idx / 3, idx % 3);
+            ++idx;
+        }
+        for (int c = 0; c < 3; ++c)
+            grid->setColumnStretch(c, 1);
+
+        homeLayout->addWidget(gridHost);
+    }
+
+    homeLayout->addStretch();
+}
+
 void MainWindow::runSearch()
 {
     if (!searchBox || !searchPopup || !popupLayout)
