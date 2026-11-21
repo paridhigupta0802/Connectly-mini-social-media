@@ -755,3 +755,74 @@ void MainWindow::showProfile(const std::string &user)
     populateProfile();
     dashboardPages->setCurrentWidget(profilePageWidget);
 }
+void MainWindow::runSearch()
+{
+    if (!searchBox || !searchPopup || !popupLayout)
+        return;
+
+    clearLayout(popupLayout);
+
+    QString text = searchBox->text().trimmed();
+    if (text.isEmpty())
+    {
+        searchPopup->hide();
+        return;
+    }
+
+    std::string uname = text.toStdString();
+    bool found = graph.searchPerson(uname);
+
+    if (!found)
+    {
+        QLabel *none = new QLabel("No user found for “" + text + "”");
+        none->setObjectName("muted");
+        none->setContentsMargins(10, 10, 10, 10);
+        popupLayout->addWidget(none);
+    }
+    else
+    {
+        QWidget *row = new QWidget();
+        QHBoxLayout *rl = new QHBoxLayout(row);
+        rl->setContentsMargins(4, 4, 4, 4);
+        rl->setSpacing(10);
+
+        QPushButton *av = createAvatar(text, 40);
+        QPushButton *nameBtn = new QPushButton(text);
+        nameBtn->setObjectName("resultName");
+        nameBtn->setCursor(Qt::PointingHandCursor);
+
+        rl->addWidget(av);
+        rl->addWidget(nameBtn, 1);
+
+        connect(av, &QPushButton::clicked, this, [this, uname]()
+        {
+            showProfile(uname);
+        });
+        connect(nameBtn, &QPushButton::clicked, this, [this, uname]()
+        {
+            showProfile(uname);
+        });
+
+        if (uname == loggedInUser)
+        {
+            QLabel *you = new QLabel("You");
+            you->setObjectName("muted");
+            rl->addWidget(you);
+        }
+        else
+        {
+            rl->addWidget(createRelationWidget(uname, "Add"));
+        }
+
+        popupLayout->addWidget(row);
+    }
+
+
+    QWidget *host = searchPopup->parentWidget();
+    QPoint pos = searchBox->mapTo(host, QPoint(0, searchBox->height() + 8));
+    searchPopup->setFixedWidth(searchBox->width());
+    searchPopup->adjustSize();
+    searchPopup->move(pos);
+    searchPopup->show();
+    searchPopup->raise();
+}
