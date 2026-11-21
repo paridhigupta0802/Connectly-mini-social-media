@@ -696,3 +696,62 @@ QWidget *MainWindow::createTopBar(QWidget *dashboard)
 
     return topbar;
 }
+QWidget *MainWindow::createScrollPage(QVBoxLayout *&contentLayout)
+{
+    QScrollArea *scroll = new QScrollArea();
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+
+    QWidget *wrapper = new QWidget();
+    QHBoxLayout *wrapLayout = new QHBoxLayout(wrapper);
+    wrapLayout->setContentsMargins(20, 24, 20, 24);
+
+    QWidget *content = new QWidget();
+    content->setMaximumWidth(1000);
+    content->setMinimumWidth(600);
+
+    contentLayout = new QVBoxLayout(content);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    contentLayout->setSpacing(22);
+
+    wrapLayout->addStretch(1);
+    wrapLayout->addWidget(content, 100);
+    wrapLayout->addStretch(1);
+
+    scroll->setWidget(wrapper);
+    return scroll;
+}
+
+void MainWindow::showHome()
+{
+    if (searchPopup) searchPopup->hide();
+
+    if (searchBox)
+    {
+        searchBox->blockSignals(true);
+        searchBox->clear();
+        searchBox->blockSignals(false);
+    }
+
+    loadRequests();
+    populateHome();
+    dashboardPages->setCurrentWidget(homePageWidget);
+}
+
+void MainWindow::showProfile(const std::string &user)
+{
+    currentProfileUser = user;
+
+    if (searchPopup) searchPopup->hide();
+
+    if (searchBox)
+    {
+        searchBox->blockSignals(true);
+        searchBox->clear();
+        searchBox->blockSignals(false);
+    }
+
+    loadRequests();
+    populateProfile();
+    dashboardPages->setCurrentWidget(profilePageWidget);
+}
