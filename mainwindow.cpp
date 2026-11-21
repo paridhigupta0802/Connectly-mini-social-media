@@ -221,3 +221,75 @@ MainWindow::~MainWindow()
 {
     delete ui;
 }
+void MainWindow::initializeDatabase()
+{
+    if (!graph.loadGraph(kDbHost, kDbUser, kDbPass))
+    {
+        QMessageBox::critical(this, "Database Error",
+                              "Unable to load Connectly data from MySQL.");
+    }
+}
+
+void MainWindow::handleLogin()
+{
+    QString username = ui->lineEdit->text().trimmed();
+    QString password = ui->lineEdit_2->text();
+
+    if (username.isEmpty() || password.isEmpty())
+    {
+        QMessageBox::warning(this, "Login",
+                             "Please enter both username and password.");
+        return;
+    }
+
+    loggedInUser = userSystem.loginUser(username.toStdString(),
+                                        password.toStdString());
+
+    if (loggedInUser.empty())
+    {
+        QMessageBox::warning(this, "Login Failed",
+                             "Invalid username or password.");
+        return;
+    }
+
+    showDashboard();
+}
+void MainWindow::logout()
+{
+    loggedInUser.clear();
+    currentProfileUser.clear();
+
+    ui->lineEdit->clear();
+    ui->lineEdit_2->clear();
+
+    appPages->setCurrentWidget(loginPage);
+}
+
+
+void MainWindow::showDashboard()
+{
+    if (dashboardPage != nullptr)
+    {
+        appPages->removeWidget(dashboardPage);
+        delete dashboardPage;
+        dashboardPage = nullptr;
+        dashboardPages = nullptr;
+        homePageWidget = nullptr;
+        profilePageWidget = nullptr;
+        homeLayout = nullptr;
+        profileLayout = nullptr;
+        searchBox = nullptr;
+        searchPopup = nullptr;
+        popupLayout = nullptr;
+        bellButton = nullptr;
+        chatButton = nullptr;
+        incomingRequests.clear();
+        outgoingRequests.clear();
+    }
+
+    dashboardPage = createDashboard();
+    appPages->addWidget(dashboardPage);
+    appPages->setCurrentWidget(dashboardPage);
+
+    showHome();
+}
