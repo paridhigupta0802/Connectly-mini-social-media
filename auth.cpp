@@ -61,7 +61,6 @@ bool isValidPassword(const string& password)
         else
             hasSpecial = true;
     }
-
     return hasUpper && hasLower && hasDigit && hasSpecial;
 }
 
