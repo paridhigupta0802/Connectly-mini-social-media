@@ -722,6 +722,371 @@ QWidget *MainWindow::createScrollPage(QVBoxLayout *&contentLayout)
     return scroll;
 }
 
+void MainWindow::showChatDialog()
+{
+    if (loggedInUser.empty())
+        return;
+
+    QDialog *dialog = new QDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setWindowTitle("Connectly Messages");
+    dialog->resize(900, 620);
+    dialog->setMinimumSize(720, 480);
+
+    dialog->setStyleSheet(R"(
+        QDialog {
+            background: #F4F6FB;
+            font-family: "Segoe UI";
+            color: #24324A;
+        }
+        QFrame#chatPanel {
+            background: white;
+            border: 1px solid #E6EBF3;
+            border-radius: 14px;
+        }
+        QLabel#chatHeading {
+            color: #243B65;
+            font-size: 19px;
+            font-weight: bold;
+        }
+        QLabel#chatSubheading {
+            color: #7B8798;
+            font-size: 12px;
+        }
+        QListWidget {
+            background: white;
+            border: none;
+            outline: none;
+            padding: 6px;
+        }
+        QListWidget::item {
+            padding: 13px 10px;
+            border-radius: 9px;
+            color: #243B65;
+        }
+        QListWidget::item:selected {
+            background: #EAF1FD;
+            color: #245BAA;
+        }
+        QLineEdit#messageInput {
+            background: #F7F9FC;
+            border: 1px solid #DCE3ED;
+            border-radius: 18px;
+            padding: 11px 15px;
+            color: #243B65;
+            font-size: 13px;
+        }
+        QPushButton#sendMessageButton {
+            background: #3478D4;
+            color: white;
+            border: none;
+            border-radius: 18px;
+            padding: 10px 22px;
+            font-weight: bold;
+        }
+        QPushButton#sendMessageButton:hover { background: #245FAF; }
+        QScrollArea { border: none; background: transparent; }
+    )");
+
+    QHBoxLayout *root = new QHBoxLayout(dialog);
+    root->setContentsMargins(16, 16, 16, 16);
+    root->setSpacing(14);
+
+
+    QFrame *leftPanel = new QFrame();
+    leftPanel->setObjectName("chatPanel");
+    leftPanel->setFixedWidth(255);
+    QVBoxLayout *leftLayout = new QVBoxLayout(leftPanel);
+    leftLayout->setContentsMargins(14, 18, 14, 14);
+    leftLayout->setSpacing(10);
+
+    QLabel *messagesTitle = new QLabel("Messages");
+    messagesTitle->setObjectName("chatHeading");
+    QLabel *messagesSubtitle = new QLabel("Your friends on Connectly");
+    messagesSubtitle->setObjectName("chatSubheading");
+
+    QListWidget *friendList = new QListWidget();
+    friendList->setSpacing(3);
+
+    leftLayout->addWidget(messagesTitle);
+    leftLayout->addWidget(messagesSubtitle);
+    leftLayout->addSpacing(6);
+    leftLayout->addWidget(friendList, 1);
+
+  
+    QFrame *rightPanel = new QFrame();
+    rightPanel->setObjectName("chatPanel");
+    QVBoxLayout *rightLayout = new QVBoxLayout(rightPanel);
+    rightLayout->setContentsMargins(18, 16, 18, 16);
+    rightLayout->setSpacing(12);
+
+    QHBoxLayout *conversationHeader = new QHBoxLayout();
+    QLabel *conversationAvatar = new QLabel("?");
+    conversationAvatar->setFixedSize(42, 42);
+    conversationAvatar->setAlignment(Qt::AlignCenter);
+    conversationAvatar->setStyleSheet(
+        "background:#3478D4; color:white; border-radius:21px;"
+        "font-size:18px; font-weight:bold;");
+
+    QVBoxLayout *conversationTitleLayout = new QVBoxLayout();
+    conversationTitleLayout->setSpacing(2);
+    QLabel *conversationName = new QLabel("Select a friend");
+    conversationName->setObjectName("chatHeading");
+    QLabel *conversationStatus = new QLabel("Choose someone to start chatting");
+    conversationStatus->setObjectName("chatSubheading");
+    conversationTitleLayout->addWidget(conversationName);
+    conversationTitleLayout->addWidget(conversationStatus);
+
+    conversationHeader->addWidget(conversationAvatar);
+    conversationHeader->addLayout(conversationTitleLayout, 1);
+    rightLayout->addLayout(conversationHeader);
+
+    QFrame *separator = new QFrame();
+    separator->setFrameShape(QFrame::HLine);
+    separator->setStyleSheet("color:#E6EBF3;");
+    rightLayout->addWidget(separator);
+
+    QScrollArea *messageScroll = new QScrollArea();
+    messageScroll->setWidgetResizable(true);
+    messageScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    QWidget *messageHost = new QWidget();
+    QVBoxLayout *messageLayout = new QVBoxLayout(messageHost);
+    messageLayout->setContentsMargins(8, 8, 8, 8);
+    messageLayout->setSpacing(10);
+    messageLayout->addStretch(1);
+    messageScroll->setWidget(messageHost);
+    rightLayout->addWidget(messageScroll, 1);
+
+    QHBoxLayout *composer = new QHBoxLayout();
+    QLineEdit *messageInput = new QLineEdit();
+    messageInput->setObjectName("messageInput");
+    messageInput->setPlaceholderText("Write a message...");
+    QPushButton *sendButton = new QPushButton("Send");
+    sendButton->setObjectName("sendMessageButton");
+    composer->addWidget(messageInput, 1);
+    composer->addWidget(sendButton);
+    rightLayout->addLayout(composer);
+
+    root->addWidget(leftPanel);
+    root->addWidget(rightPanel, 1);
+
+  
+    const std::vector<std::string> friends = graph.getFriends(loggedInUser);
+    for (const std::string &friendName : friends)
+        friendList->addItem(QString::fromStdString(friendName));
+
+    std::string selectedFriend;
+
+   
+    auto loadConversation = [this, dialog, messageLayout, messageHost,
+                             messageScroll, conversationName,
+                             conversationStatus, conversationAvatar,
+                             &selectedFriend]()
+    {
+        if (selectedFriend.empty())
+            return;
+
+        try
+        {
+            sql::mysql::MySQL_Driver *driver =
+                sql::mysql::get_mysql_driver_instance();
+
+            std::unique_ptr<sql::Connection> con(
+                driver->connect(kDbHost, kDbUser, kDbPass));
+            con->setSchema("connectly");
+
+            std::unique_ptr<sql::PreparedStatement> stmt(
+                con->prepareStatement(
+                    "SELECT sender, message_text, sent_at "
+                    "FROM messages "
+                    "WHERE (sender=? AND receiver=?) "
+                    "OR (sender=? AND receiver=?) "
+                    "ORDER BY sent_at ASC, message_id ASC"));
+
+            stmt->setString(1, loggedInUser);
+            stmt->setString(2, selectedFriend);
+            stmt->setString(3, selectedFriend);
+            stmt->setString(4, loggedInUser);
+
+            std::unique_ptr<sql::ResultSet> result(stmt->executeQuery());
+
+            // Remove old bubbles but keep the stretch at the bottom.
+            while (QLayoutItem *item = messageLayout->takeAt(0))
+            {
+                if (QWidget *widget = item->widget())
+                    widget->deleteLater();
+                delete item;
+            }
+
+            bool hasMessages = false;
+            while (result->next())
+            {
+                hasMessages = true;
+                const QString sender =
+                    QString::fromStdString(result->getString("sender"));
+                const QString body =
+                    QString::fromStdString(result->getString("message_text"));
+                const QString time =
+                    QString::fromStdString(result->getString("sent_at"));
+
+                QWidget *row = new QWidget(messageHost);
+                QHBoxLayout *rowLayout = new QHBoxLayout(row);
+                rowLayout->setContentsMargins(0, 0, 0, 0);
+
+                QLabel *bubble = new QLabel(body);
+                bubble->setWordWrap(true);
+                bubble->setTextInteractionFlags(Qt::TextSelectableByMouse);
+                bubble->setMaximumWidth(430);
+                bubble->setContentsMargins(12, 9, 12, 5);
+
+                QLabel *timeLabel = new QLabel(time);
+                timeLabel->setStyleSheet("color:#7B8798; font-size:10px;");
+
+                QVBoxLayout *bubbleLayout = new QVBoxLayout();
+                bubbleLayout->setContentsMargins(0, 0, 0, 0);
+                bubbleLayout->setSpacing(3);
+                bubbleLayout->addWidget(bubble);
+                bubbleLayout->addWidget(timeLabel,
+                    sender == QString::fromStdString(loggedInUser)
+                        ? Qt::AlignRight : Qt::AlignLeft);
+
+                if (sender == QString::fromStdString(loggedInUser))
+                {
+                    bubble->setStyleSheet(
+                        "background:#3478D4; color:white;"
+                        "border-radius:13px;");
+                    rowLayout->addStretch();
+                    rowLayout->addLayout(bubbleLayout);
+                }
+                else
+                {
+                    bubble->setStyleSheet(
+                        "background:#EEF2F8; color:#243B65;"
+                        "border-radius:13px;");
+                    rowLayout->addLayout(bubbleLayout);
+                    rowLayout->addStretch();
+                }
+
+                messageLayout->addWidget(row);
+            }
+
+            if (!hasMessages)
+            {
+                QLabel *empty = new QLabel(
+                    "No messages yet. Say hello to start the conversation!");
+                empty->setStyleSheet("color:#7B8798; padding:20px;");
+                empty->setAlignment(Qt::AlignCenter);
+                messageLayout->addWidget(empty);
+            }
+
+            messageLayout->addStretch(1);
+            conversationName->setText(
+                QString::fromStdString(selectedFriend));
+            conversationStatus->setText("Connectly friend");
+            conversationAvatar->setText(
+                QString::fromStdString(selectedFriend).left(1).toUpper());
+
+          
+            std::unique_ptr<sql::PreparedStatement> readStmt(
+                con->prepareStatement(
+                    "UPDATE messages SET is_read=TRUE "
+                    "WHERE sender=? AND receiver=? AND is_read=FALSE"));
+            readStmt->setString(1, selectedFriend);
+            readStmt->setString(2, loggedInUser);
+            readStmt->executeUpdate();
+
+            QTimer::singleShot(0, messageScroll, [messageScroll]()
+            {
+                messageScroll->verticalScrollBar()->setValue(
+                    messageScroll->verticalScrollBar()->maximum());
+            });
+        }
+        catch (sql::SQLException &e)
+        {
+            QMessageBox::warning(dialog, "Chat Database Error",
+                QString("Could not load messages:\n%1")
+                    .arg(QString::fromStdString(e.what())));
+        }
+    };
+
+    connect(friendList, &QListWidget::currentTextChanged, dialog,
+            [&, loadConversation](const QString &name)
+    {
+        selectedFriend = name.toStdString();
+        loadConversation();
+    });
+
+    auto sendCurrentMessage = [this, dialog, messageInput,
+                               &selectedFriend, loadConversation]()
+    {
+        if (selectedFriend.empty())
+        {
+            QMessageBox::information(dialog, "Messages",
+                                     "Select a friend first.");
+            return;
+        }
+
+        const QString message = messageInput->text().trimmed();
+        if (message.isEmpty())
+            return;
+
+        try
+        {
+            sql::mysql::MySQL_Driver *driver =
+                sql::mysql::get_mysql_driver_instance();
+
+            std::unique_ptr<sql::Connection> con(
+                driver->connect(kDbHost, kDbUser, kDbPass));
+            con->setSchema("connectly");
+
+            std::unique_ptr<sql::PreparedStatement> stmt(
+                con->prepareStatement(
+                    "INSERT INTO messages "
+                    "(sender, receiver, message_text) VALUES (?, ?, ?)"));
+
+            stmt->setString(1, loggedInUser);
+            stmt->setString(2, selectedFriend);
+            stmt->setString(3, message.toStdString());
+            stmt->executeUpdate();
+
+            messageInput->clear();
+            loadConversation();
+        }
+        catch (sql::SQLException &e)
+        {
+            QMessageBox::warning(dialog, "Send Failed",
+                QString("Could not send message:\n%1")
+                    .arg(QString::fromStdString(e.what())));
+        }
+    };
+
+    connect(sendButton, &QPushButton::clicked,
+            dialog, sendCurrentMessage);
+    connect(messageInput, &QLineEdit::returnPressed,
+            dialog, sendCurrentMessage);
+
+    // Refresh the open conversation so replies appear without reopening it.
+    QTimer *refreshTimer = new QTimer(dialog);
+    connect(refreshTimer, &QTimer::timeout, dialog, loadConversation);
+    refreshTimer->start(2000);
+
+    if (friendList->count() > 0)
+        friendList->setCurrentRow(0);
+    else
+    {
+        conversationName->setText("No friends yet");
+        conversationStatus->setText(
+            "You can message people after they become your accepted friends.");
+        QLabel *empty = new QLabel("Your accepted friends will appear here.");
+        empty->setAlignment(Qt::AlignCenter);
+        empty->setStyleSheet("color:#7B8798; padding:24px;");
+        messageLayout->insertWidget(0, empty);
+    }
+
+    dialog->exec();
+}
+
 void MainWindow::showHome()
 {
     if (searchPopup) searchPopup->hide();
