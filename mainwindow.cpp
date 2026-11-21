@@ -1415,6 +1415,154 @@ void MainWindow::populateHome()
     homeLayout->addStretch();
 }
 
+void MainWindow::populateProfile()
+{
+    clearLayout(profileLayout);
+
+    const std::string user = currentProfileUser;
+    const QString name = QString::fromStdString(user);
+    const bool own = (user == loggedInUser);
+
+    std::vector<std::string> friends = graph.getFriends(user);
+
+  
+    QFrame *header = new QFrame();
+    header->setObjectName("card");
+
+    QHBoxLayout *hl = new QHBoxLayout(header);
+    hl->setContentsMargins(36, 30, 36, 30);
+    hl->setSpacing(40);
+
+    QPushButton *avatar = createAvatar(name, 128);
+    avatar->setCursor(Qt::ArrowCursor);
+    hl->addWidget(avatar, 0, Qt::AlignTop);
+
+    QVBoxLayout *info = new QVBoxLayout();
+    info->setSpacing(10);
+
+    QHBoxLayout *nameRow = new QHBoxLayout();
+    nameRow->setSpacing(14);
+
+    QLabel *nameLabel = new QLabel(name);
+    nameLabel->setStyleSheet(
+        "font-size: 28px; font-weight: bold; color: #243B65;");
+    nameRow->addWidget(nameLabel);
+
+    if (own)
+    {
+        QLabel *you = new QLabel("You");
+        you->setStyleSheet(
+            "background: #E8F0FE; color: #2455A4; border-radius: 10px;"
+            "padding: 3px 12px; font-size: 12px; font-weight: bold;");
+        nameRow->addWidget(you);
+    }
+    else
+    {
+        nameRow->addWidget(createRelationWidget(user, "+ Add Friend"));
+    }
+    nameRow->addStretch();
+    info->addLayout(nameRow);
+
+
+    QHBoxLayout *stats = new QHBoxLayout();
+    stats->setSpacing(32);
+
+    auto makeStat = [](const QString &num, const QString &label)
+    {
+        QLabel *l = new QLabel(
+            "<span style='font-size:20px; font-weight:bold; color:#243B65;'>" +
+            num + "</span>&nbsp;<span style='font-size:14px; color:#7B8798;'>" +
+            label + "</span>");
+        return l;
+    };
+
+    stats->addWidget(makeStat(QString::number(friends.size()), "friends"));
+    if (!own)
+        stats->addWidget(makeStat(QString::number(mutualCount(user)),
+                                  "mutual"));
+    stats->addStretch();
+    info->addLayout(stats);
+
+    QLabel *bio = new QLabel(own ? "Your Connectly profile."
+                                 : "Connectly member");
+    bio->setObjectName("muted");
+    info->addWidget(bio);
+    info->addStretch();
+
+    hl->addLayout(info, 1);
+    profileLayout->addWidget(header);
+
+    QLabel *title = new QLabel(own ? "My friends" : name + "'s friends");
+    title->setObjectName("sectionTitle");
+    profileLayout->addWidget(title);
+
+    if (friends.empty())
+    {
+        QLabel *none = new QLabel(own ? "You don't have any friends yet."
+                                      : "No friends to show.");
+        none->setObjectName("muted");
+        profileLayout->addWidget(none);
+    }
+    else
+    {
+        QWidget *gridHost = new QWidget();
+        QGridLayout *grid = new QGridLayout(gridHost);
+        grid->setContentsMargins(0, 0, 0, 0);
+        grid->setSpacing(16);
+
+        int idx = 0;
+        for (const std::string &f : friends)
+        {
+            QString fname = QString::fromStdString(f);
+
+            QFrame *card = new QFrame();
+            card->setObjectName("card");
+
+            QVBoxLayout *cl = new QVBoxLayout(card);
+            cl->setContentsMargins(14, 18, 14, 14);
+            cl->setSpacing(6);
+
+            QPushButton *fav = createAvatar(fname, 64);
+            QPushButton *nameBtn = new QPushButton(fname);
+            nameBtn->setObjectName("nameButton");
+            nameBtn->setCursor(Qt::PointingHandCursor);
+
+            cl->addWidget(fav, 0, Qt::AlignHCenter);
+            cl->addWidget(nameBtn);
+
+            connect(fav, &QPushButton::clicked, this, [this, f]()
+            {
+                showProfile(f);
+            });
+            connect(nameBtn, &QPushButton::clicked, this, [this, f]()
+            {
+                showProfile(f);
+            });
+
+            if (own)
+            {
+                QPushButton *rm = new QPushButton("Remove");
+                rm->setObjectName("dangerBtn");
+                rm->setCursor(Qt::PointingHandCursor);
+                connect(rm, &QPushButton::clicked, this, [this, f]()
+                {
+                    removeFriend(f);
+                });
+                cl->addWidget(rm);
+            }
+
+            grid->addWidget(card, idx / 4, idx % 4);
+            ++idx;
+        }
+        for (int c = 0; c < 4; ++c)
+            grid->setColumnStretch(c, 1);
+
+        profileLayout->addWidget(gridHost);
+    }
+
+    profileLayout->addStretch();
+}
+
 void MainWindow::runSearch()
 {
     if (!searchBox || !searchPopup || !popupLayout)
