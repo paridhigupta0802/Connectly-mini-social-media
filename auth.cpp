@@ -12,7 +12,6 @@
 
 using namespace std;
 
-
 // ================= PASSWORD HASHING =================
 
 string hashPassword(string password)
