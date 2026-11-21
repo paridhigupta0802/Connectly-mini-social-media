@@ -1674,3 +1674,106 @@ int MainWindow::mutualCount(const std::string &name)
             ++count;
     return count;
 }
+
+void MainWindow::sendRequest(const std::string &name)
+{
+    bool ok = graph.sendFriendRequest(loggedInUser, name);
+
+    if (!ok && graph.lastRequestError.find("not found in the loaded") !=
+                   std::string::npos)
+    {
+        if (graph.loadGraph(kDbHost, kDbUser, kDbPass))
+            ok = graph.sendFriendRequest(loggedInUser, name);
+    }
+
+    if (!ok)
+        QMessageBox::warning(this, "Friend Request",
+                             "Could not send the friend request.\n\n" +
+                             QString::fromStdString(graph.lastRequestError));
+    afterFriendshipChanged();
+}
+
+void MainWindow::acceptRequest(const std::string &name)
+{
+    if (!graph.acceptFriendRequest(loggedInUser, name))
+        QMessageBox::warning(this, "Friend Request",
+                             "Could not accept this request.\n\n" +
+                             QString::fromStdString(graph.lastRequestError));
+    afterFriendshipChanged();
+}
+
+void MainWindow::rejectRequest(const std::string &name)
+{
+    graph.removeFriendRequest(name, loggedInUser);
+    afterFriendshipChanged();
+}
+
+void MainWindow::cancelRequest(const std::string &name)
+{
+    graph.removeFriendRequest(loggedInUser, name);
+    afterFriendshipChanged();
+}
+
+void MainWindow::removeFriend(const std::string &name)
+{
+    auto confirm = QMessageBox::question(
+        this, "Remove Friend",
+        "Are you sure you want to remove " +
+            QString::fromStdString(name) + "?");
+
+    if (confirm != QMessageBox::Yes)
+        return;
+
+    if (graph.deleteFriendship(loggedInUser, name))
+        afterFriendshipChanged();
+    else
+        QMessageBox::warning(this, "Error", "Could not remove this friend.");
+}
+
+void MainWindow::afterFriendshipChanged()
+{
+    loadRequests();
+    populateHome();
+
+    if (dashboardPages && dashboardPages->currentWidget() == profilePageWidget)
+        populateProfile();
+
+    if (searchBox && !searchBox->text().trimmed().isEmpty())
+        runSearch();
+}
+
+void MainWindow::loadRequests()
+{
+    incomingRequests.clear();
+    outgoingRequests.clear();
+
+    if (loggedInUser.empty())
+        return;
+
+    for (const std::string &n : graph.getFriendRequests(loggedInUser, true))
+        if (!isFriend(n))
+            incomingRequests.push_back(n);
+
+    for (const std::string &n : graph.getFriendRequests(loggedInUser, false))
+        if (!isFriend(n))
+            outgoingRequests.push_back(n);
+
+    refreshBell();
+}
+
+void MainWindow::refreshBell()
+{
+    if (!bellButton)
+        return;
+
+    const int n = static_cast<int>(incomingRequests.size());
+
+    bellButton->setText(n > 0 ? QString("🔔 %1").arg(n) : QString("🔔"));
+    bellButton->setToolTip(n > 0
+        ? QString("%1 pending friend request(s) - click to view").arg(n)
+        : QString("No new friend requests"));
+
+    bellButton->setProperty("alert", n > 0);
+    bellButton->style()->unpolish(bellButton);
+    bellButton->style()->polish(bellButton);
+}
