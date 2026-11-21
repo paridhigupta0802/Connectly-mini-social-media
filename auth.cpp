@@ -137,7 +137,6 @@ bool UserSystem::registerUser(
         insertStmt->setString(3, interests);
 
         insertStmt->executeUpdate();
-
         // Add user to in-memory social graph
         graph.addPerson(username);
 
