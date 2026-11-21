@@ -26,7 +26,6 @@ string hashPassword(string password)
 
         position++;
     }
-
     return to_string(hash);
 }
 
