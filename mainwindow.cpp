@@ -1777,3 +1777,52 @@ void MainWindow::refreshBell()
     bellButton->style()->unpolish(bellButton);
     bellButton->style()->polish(bellButton);
 }
+void MainWindow::pollServer()
+{
+    static bool busy = false;                 
+
+    if (busy || loggedInUser.empty() || !dashboardPages)
+        return;
+    if (QApplication::activeModalWidget())  
+        return;
+
+    struct Guard
+    {
+        bool &flag;
+        explicit Guard(bool &f) : flag(f) { flag = true; }
+        ~Guard() { flag = false; }
+    } guard(busy);
+
+    const std::vector<std::string> oldIn = incomingRequests;
+    const std::vector<std::string> oldOut = outgoingRequests;
+    const size_t oldFriends = graph.getFriends(loggedInUser).size();
+
+    loadRequests();
+
+    bool sentRequestGone = false;
+    for (const std::string &n : oldOut)
+        if (!contains(outgoingRequests, n))
+            sentRequestGone = true;
+
+    if (sentRequestGone)
+    {
+        if (graph.loadGraph(kDbHost, kDbUser, kDbPass))
+            loadRequests();
+    }
+
+    const bool changed =
+        oldIn != incomingRequests ||
+        oldOut != outgoingRequests ||
+        oldFriends != graph.getFriends(loggedInUser).size();
+
+    if (!changed)
+        return;
+
+    if (dashboardPages->currentWidget() == profilePageWidget)
+        populateProfile();
+    else
+        populateHome();
+
+    if (searchBox && !searchBox->text().trimmed().isEmpty())
+        runSearch();
+}
