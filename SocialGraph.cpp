@@ -68,3 +68,44 @@ void SocialGraph::addFriendEdge(const std::string& username1,const std::string& 
     node2->next=person2->friends;
     person2->friends=node2;
 }
+bool SocialGraph::addFriendship(const std::string& username1,const std::string& username2)
+{
+    if(username1==username2)
+    {
+        std::cout<<"You cannot add yourself as a friend.\n";
+        return false;
+    }
+    
+    PersonNode* person1=findPerson(username1);
+    PersonNode* person2=findPerson(username2);
+
+    if(person1==nullptr||person2==nullptr)
+    {
+        std::cout<<"Person does not exist.\n";
+        return false;
+    }
+    FriendNode* current=person1->friends;
+    while(current!=nullptr)
+    {
+        if(current->username == username2)
+        {
+            std::cout<<"Friendship already exists.\n";
+            return false;
+        }
+        current=current->next;
+    }
+    
+    string first, second;
+    if(username1 < username2)
+    {
+        first=username1;
+        second=username2;
+    }
+    else
+    {
+        first=username2;
+        second=username1;
+    }
+    
+    sql::Connection* con=nullptr;
+    sql::PreparedStatement* stmt=nullptr;
