@@ -32,7 +32,6 @@ void Queue::enqueue(const BFSNode& data)
         rear=temp;
     }
 }
-
 bool Queue::dequeue(struct BFSNode& result)
 {
     if (isEmpty())
