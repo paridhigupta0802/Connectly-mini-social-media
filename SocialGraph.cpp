@@ -659,3 +659,193 @@ std::vector<std::string> SocialGraph::getFriends(
     }
 }
 
+
+
+// ============================================================================
+//  FRIEND REQUESTS  --  paste this block at the END of your SocialGraph.cpp
+//  (nothing else in the file changes; addFriendship / deleteFriendship /
+//   loadGraph etc. are reused as they are)
+//
+//  Needs the 4 declarations from SocialGraph.h  (see friend_requests_header.txt)
+//  The table below is created automatically the first time it is needed.
+// ============================================================================
+#include <memory>
+#include <vector>
+#include <jdbc/cppconn/statement.h>
+
+namespace
+{
+    // Connects to the database and makes sure the requests table exists.
+    std::unique_ptr<sql::Connection> openRequestDb(const std::string& host,
+                                                   const std::string& user,
+                                                   const std::string& password)
+    {
+        sql::mysql::MySQL_Driver* driver = sql::mysql::get_mysql_driver_instance();
+        std::unique_ptr<sql::Connection> con(driver->connect(host, user, password));
+        con->setSchema("connectly");
+
+        std::unique_ptr<sql::Statement> st(con->createStatement());
+        st->execute("CREATE TABLE IF NOT EXISTS friend_requests ("
+                    "from_user VARCHAR(100) NOT NULL, "
+                    "to_user VARCHAR(100) NOT NULL, "
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                    "PRIMARY KEY (from_user, to_user))");
+        return con;
+    }
+}
+
+// 'from' asks 'to' to become friends. If 'to' had already asked 'from',
+// the two requests simply meet in the middle and they become friends.
+bool SocialGraph::sendFriendRequest(const std::string& from, const std::string& to)
+{
+    lastRequestError.clear();
+
+    if (from == to)
+    {
+        lastRequestError = "You cannot send a request to yourself.";
+        return false;
+    }
+
+    PersonNode* p1 = findPerson(from);
+    PersonNode* p2 = findPerson(to);
+    if (p1 == nullptr || p2 == nullptr)
+    {
+        lastRequestError = "'" + (p1 == nullptr ? from : to) +
+                           "' was not found in the loaded user list.";
+        return false;
+    }
+
+    for (FriendNode* f = p1->friends; f != nullptr; f = f->next)
+        if (f->username == to)
+        {
+            lastRequestError = "You are already friends.";
+            return false;
+        }
+
+    try
+    {
+        std::unique_ptr<sql::Connection> con = openRequestDb(dbHost, dbUser, dbPassword);
+
+        std::unique_ptr<sql::PreparedStatement> check(con->prepareStatement(
+            "SELECT 1 FROM friend_requests WHERE from_user = ? AND to_user = ?"));
+        check->setString(1, to);
+        check->setString(2, from);
+        std::unique_ptr<sql::ResultSet> res(check->executeQuery());
+        if (res->next())
+            return acceptFriendRequest(from, to);   // they already asked us
+
+        std::unique_ptr<sql::PreparedStatement> ins(con->prepareStatement(
+            "INSERT IGNORE INTO friend_requests (from_user, to_user) VALUES (?, ?)"));
+        ins->setString(1, from);
+        ins->setString(2, to);
+        ins->executeUpdate();
+        return true;
+    }
+    catch (sql::SQLException& e)
+    {
+        lastRequestError = std::string("Database error: ") + e.what();
+        std::cerr << "MySQL error sending friend request: " << e.what() << '\n';
+        return false;
+    }
+}
+
+// 'acceptor' accepts the request that 'requester' sent them.
+bool SocialGraph::acceptFriendRequest(const std::string& acceptor, const std::string& requester)
+{
+    lastRequestError.clear();
+
+    try
+    {
+        std::unique_ptr<sql::Connection> con = openRequestDb(dbHost, dbUser, dbPassword);
+
+        std::unique_ptr<sql::PreparedStatement> check(con->prepareStatement(
+            "SELECT 1 FROM friend_requests WHERE from_user = ? AND to_user = ?"));
+        check->setString(1, requester);
+        check->setString(2, acceptor);
+        std::unique_ptr<sql::ResultSet> res(check->executeQuery());
+        if (!res->next())
+        {
+            lastRequestError = "There is no pending request from '" + requester + "'.";
+            return false;                       // no such request
+        }
+
+        bool alreadyFriends = false;
+        PersonNode* p = findPerson(acceptor);
+        if (p != nullptr)
+            for (FriendNode* f = p->friends; f != nullptr; f = f->next)
+                if (f->username == requester)
+                    alreadyFriends = true;
+
+        if (!alreadyFriends && !addFriendship(acceptor, requester))
+        {
+            lastRequestError = "The friendship could not be saved (see console).";
+            return false;                       // request is kept so they can retry
+        }
+
+        std::unique_ptr<sql::PreparedStatement> del(con->prepareStatement(
+            "DELETE FROM friend_requests WHERE from_user = ? AND to_user = ?"));
+        del->setString(1, requester);
+        del->setString(2, acceptor);
+        del->executeUpdate();
+        return true;
+    }
+    catch (sql::SQLException& e)
+    {
+        lastRequestError = std::string("Database error: ") + e.what();
+        std::cerr << "MySQL error accepting friend request: " << e.what() << '\n';
+        return false;
+    }
+}
+
+// Deletes a request. Used for both "reject" (from = requester, to = me)
+// and "cancel" (from = me, to = person I asked).
+bool SocialGraph::removeFriendRequest(const std::string& from, const std::string& to)
+{
+    try
+    {
+        std::unique_ptr<sql::Connection> con = openRequestDb(dbHost, dbUser, dbPassword);
+
+        std::unique_ptr<sql::PreparedStatement> del(con->prepareStatement(
+            "DELETE FROM friend_requests WHERE from_user = ? AND to_user = ?"));
+        del->setString(1, from);
+        del->setString(2, to);
+        return del->executeUpdate() > 0;
+    }
+    catch (sql::SQLException& e)
+    {
+        std::cerr << "MySQL error removing friend request: " << e.what() << '\n';
+        return false;
+    }
+}
+
+// incoming = true  -> people who asked 'username'
+// incoming = false -> people 'username' has asked
+std::vector<std::string> SocialGraph::getFriendRequests(const std::string& username, bool incoming)
+{
+    std::vector<std::string> names;
+
+    try
+    {
+        std::unique_ptr<sql::Connection> con = openRequestDb(dbHost, dbUser, dbPassword);
+
+        std::unique_ptr<sql::PreparedStatement> stmt(con->prepareStatement(
+            incoming
+            ? "SELECT from_user AS other FROM friend_requests WHERE to_user = ? ORDER BY created_at DESC"
+            : "SELECT to_user AS other FROM friend_requests WHERE from_user = ? ORDER BY created_at DESC"));
+        stmt->setString(1, username);
+
+        std::unique_ptr<sql::ResultSet> res(stmt->executeQuery());
+        while (res->next())
+        {
+            std::string other = res->getString("other");
+            if (findPerson(other) != nullptr)       // ignore deleted accounts
+                names.push_back(other);
+        }
+    }
+    catch (sql::SQLException& e)
+    {
+        std::cerr << "MySQL error loading friend requests: " << e.what() << '\n';
+    }
+
+    return names;
+}
