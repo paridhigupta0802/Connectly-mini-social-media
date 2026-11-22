@@ -243,4 +243,225 @@ bool SocialGraph::deleteFriendship(const std::string& username1,const std::strin
         cout<<"Friendship deleted successfully.\n";
         return true;
 
+    }
+    catch(sql::SQLException& e)
+    {
+        cerr<<"MySQL error :"<<e.what()<<'\n';
+        delete pstmt;
+        pstmt=nullptr;
+        delete con;
+        con=nullptr;
+
+        return false;
+    }
+}
+
+void SocialGraph::displayFriends(const string& username)
+{
+    sql::Connection* con = nullptr;
+    sql::PreparedStatement* pstmt = nullptr;
+    sql::ResultSet* res = nullptr;
+
+    try
+    {
+        sql::mysql::MySQL_Driver* driver =sql::mysql::get_mysql_driver_instance();
+
+        con = driver->connect(dbHost, dbUser, dbPassword);
+        con->setSchema("connectly");
+
+        pstmt = con->prepareStatement("SELECT username FROM users WHERE username = ?");
+        pstmt->setString(1, username);
+        res = pstmt->executeQuery();
+
+        bool userExists = res->next();
+
+        delete res;
+        res = nullptr;
+
+        delete pstmt;
+        pstmt = nullptr;
+
+        if (!userExists)
+        {
+            cout << "Person does not exist.\n";
+            delete con;
+            con = nullptr;
+            return;
+        }
+
+        pstmt = con->prepareStatement("SELECT CASE WHEN username = ? "
+            "THEN friend_username ELSE username END AS friend_name "
+            "FROM friendships "
+            "WHERE username = ? OR friend_username = ?");
+        pstmt->setString(1, username);
+        pstmt->setString(2, username);
+        pstmt->setString(3, username);
+
+        res = pstmt->executeQuery();
+
+        cout << "\nFriends of " << username << ":\n";
+
+        bool found = false;
+
+        while (res->next())
+        {
+            cout << res->getString("friend_name") << '\n';
+            found = true;
+        }
+
+        if (!found)
+        {
+            cout << "No friends found.\n";
+        }
+
+        delete res;
+        res=nullptr;
+        delete pstmt;
+        pstmt=nullptr;
+        delete con;
+        con=nullptr;
+    }
+    catch (sql::SQLException& e)
+    {
+        cerr << "MySQL error: " << e.what() << '\n';
+        delete res;
+        res=nullptr;
+        delete pstmt;
+        pstmt=nullptr;
+        delete con;
+        con=nullptr;
+    }
+}
+
+bool SocialGraph::searchPerson(const string& username)
+{
+    sql::Connection* con=nullptr;
+    sql::PreparedStatement* pstmt=nullptr;
+    sql::ResultSet* res=nullptr;
+
+    try
+    {
+        sql::mysql::MySQL_Driver* driver=sql::mysql::get_mysql_driver_instance();
+        con=driver->connect(dbHost,dbUser,dbPassword);
+        con->setSchema("connectly");
+        pstmt=con->prepareStatement("SELECT username FROM users WHERE username = ?");
+        pstmt->setString(1, username);        
+        res=pstmt->executeQuery();
+        bool found=res->next();
+
+        delete res;
+        res=nullptr;
+        delete pstmt;
+        pstmt=nullptr;
+        delete con;
+        con=nullptr;
+
+        return found;
+    }
+
+    catch(sql::SQLException& e)
+    {
+        cerr<<"MySQL error:"<<e.what()<<'\n';
+        
+        delete res;
+        res=nullptr;
+        delete pstmt;
+        pstmt=nullptr;
+        delete con;
+        con=nullptr;
+
+        return false;
+
+    }  
+}
+       
+bool SocialGraph::deleteAccount(const string& username)
+{
+    sql::Connection* con = nullptr;
+    sql::PreparedStatement* pstmt = nullptr;
+    sql::ResultSet* res = nullptr;
+
+    try
+    {
+        sql::mysql::MySQL_Driver* driver =sql::mysql::get_mysql_driver_instance();
+
+        con = driver->connect(dbHost, dbUser, dbPassword);
+        con->setSchema("connectly");
+
+        pstmt = con->prepareStatement("SELECT username FROM users WHERE username = ?");
+
+        pstmt->setString(1, username);
+        res = pstmt->executeQuery();
+
+        if (!res->next())
+        {
+            cout << "Account does not exist.\n";
+
+            delete res;
+            res=nullptr;
+            delete pstmt;
+            pstmt=nullptr;
+            delete con;
+            con=nullptr;
+
+            return false;
+        }
+
+        delete res;
+        res = nullptr;
+
+        delete pstmt;
+        pstmt = nullptr;
+
+        pstmt = con->prepareStatement("DELETE FROM friendships "
+            "WHERE username = ? OR friend_username = ?");
+
+        pstmt->setString(1, username);
+        pstmt->setString(2, username);
+        pstmt->executeUpdate();
+
+        delete pstmt;
+        pstmt = nullptr;
+
+        pstmt = con->prepareStatement("DELETE FROM users WHERE username = ?");
+
+        pstmt->setString(1, username);
+
+        int rows = pstmt->executeUpdate();
+
+        delete pstmt;
+        pstmt = nullptr;
+
+        delete con;
+        con = nullptr;
+
+        if (rows > 0)
+        {
+            if(loadGraph(dbHost, dbUser, dbPassword))
+            {
+            cout << "Account deleted successfully.\n";
+            return true;
+            }
+            cout << "Account deleted ,but graph could noot be refreshed.\n";
+            return false;
+        }
+
+        cout << "Account deletion failed.\n";
+        return false;
+    }
+    catch (sql::SQLException& e)
+    {
+        cerr << "MySQL error: " << e.what() << '\n';
+
+        delete res;
+        res=nullptr;
+        delete pstmt;
+        pstmt=nullptr;
+        delete con;
+        con=nullptr;
+
+        return false;
+    }
+}         
+
 
