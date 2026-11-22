@@ -463,5 +463,199 @@ bool SocialGraph::deleteAccount(const string& username)
         return false;
     }
 }         
+bool SocialGraph::loadGraph(const std::string& host, const std::string& user, const std::string& password)
+{
+    clear();
+    dbHost=host;
+    dbUser=user;
+    dbPassword=password;
 
+    sql::Connection* con=nullptr;
+    sql::PreparedStatement* usersStmt=nullptr;
+    sql::ResultSet* usersResult=nullptr;
+    sql::PreparedStatement* friendsStmt=nullptr;
+    sql::ResultSet* friendsResult=nullptr;
+
+    try
+    {
+        
+        sql::mysql::MySQL_Driver* driver=sql::mysql::get_mysql_driver_instance();
+        MessageBoxA(
+    nullptr,
+    host.c_str(),
+    "Hostname received by loadGraph",
+    MB_OK
+);
+con=driver->connect(host,dbUser,dbPassword);
+        
+        con->setSchema("connectly");
+        usersStmt=con->prepareStatement("SELECT * FROM users ORDER BY username DESC");
+        usersResult=usersStmt->executeQuery();
+        while(usersResult->next())
+        {
+            string username=usersResult->getString("username");
+            addPerson(username);
+        }
+        delete usersResult;
+        usersResult=nullptr;
+
+        delete usersStmt;
+        usersStmt=nullptr;
+
+        friendsStmt=con->prepareStatement("SELECT username, friend_username FROM friendships");
+        friendsResult=friendsStmt->executeQuery();
+        while(friendsResult->next())
+        {
+            string username=friendsResult->getString("username");
+            string friendUsername=friendsResult->getString("friend_username");
+            addFriendEdge(username,friendUsername);
+        }
+        
+        delete friendsResult;
+        friendsResult=nullptr;
+
+        delete friendsStmt;
+        friendsStmt=nullptr;
+
+        delete con;
+        con=nullptr;
+
+        cout<<"Users and friendships loaded successfully.\n";
+        return true;
+    }
+
+    catch(sql::SQLException& e)
+{
+    MessageBoxA(
+        nullptr,
+        e.what(),
+        "Actual MySQL Error",
+        MB_OK | MB_ICONERROR
+    );
+
+    delete friendsResult;
+    delete friendsStmt;
+    delete usersResult;
+    delete usersStmt;
+    delete con;
+
+    clear();
+    return false;
+}
+}
+
+void SocialGraph::clear()
+{
+    PersonNode* person=people;
+    while(person != nullptr)
+    {
+        FriendNode* friendNode=person->friends;
+        while(friendNode != nullptr)
+        {
+            FriendNode* nextfriend=friendNode->next;
+            delete friendNode;
+            friendNode=nextfriend;
+        }
+
+        PersonNode* nextPerson=person->next;
+        delete person;
+        person=nextPerson;
+    }
+
+    people=nullptr;
+}
+
+void displayGraph(const SocialGraph&  graph)
+{
+    PersonNode* person=graph.people;
+    if(person == nullptr)
+    {
+        cout<<"Social Graph is Empty.\n";
+        return;
+    }
+    cout<<"\n=====Connectly Social Graph=====\n";
+    while(person != nullptr)
+    {
+        cout<<person->username<<" -> ";
+        FriendNode* current=person->friends;
+        if(current == nullptr)
+        {
+            cout<<"No friends";
+        }
+        while(current != nullptr)
+        {
+            cout<<current->username;
+            if(current->next != nullptr)
+            {
+                cout<<" -> ";
+            }
+            current=current->next;
+        }
+        cout<<'\n';
+        person=person->next;
+    }
+}
+
+
+
+
+
+
+std::vector<std::string> SocialGraph::getFriends(
+    const std::string& username)
+{
+    std::vector<std::string> friends;
+
+    sql::Connection* con = nullptr;
+    sql::PreparedStatement* stmt = nullptr;
+    sql::ResultSet* res = nullptr;
+
+    try
+    {
+        sql::mysql::MySQL_Driver* driver =
+            sql::mysql::get_mysql_driver_instance();
+
+        con = driver->connect(dbHost, dbUser, dbPassword);
+        con->setSchema("connectly");
+
+        stmt = con->prepareStatement(
+            "SELECT CASE "
+            "WHEN username = ? THEN friend_username "
+            "ELSE username END AS friend_name "
+            "FROM friendships "
+            "WHERE username = ? OR friend_username = ? "
+            "ORDER BY friend_name"
+        );
+
+        stmt->setString(1, username);
+        stmt->setString(2, username);
+        stmt->setString(3, username);
+
+        res = stmt->executeQuery();
+
+        while (res->next())
+        {
+            friends.push_back(
+                res->getString("friend_name")
+            );
+        }
+
+        delete res;
+        delete stmt;
+        delete con;
+
+        return friends;
+    }
+    catch (sql::SQLException& e)
+    {
+        delete res;
+        delete stmt;
+        delete con;
+
+        std::cerr << "Error loading friends: "
+                  << e.what() << '\n';
+
+        return {};
+    }
+}
 
