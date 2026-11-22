@@ -109,3 +109,36 @@ bool SocialGraph::addFriendship(const std::string& username1,const std::string& 
     
     sql::Connection* con=nullptr;
     sql::PreparedStatement* stmt=nullptr;
+    try
+    {
+        sql::mysql::MySQL_Driver* driver=sql::mysql::get_mysql_driver_instance();
+        con=driver->connect(dbHost,dbUser,dbPassword);
+        con->setSchema("connectly");
+        stmt=con->prepareStatement("INSERT INTO friendships (username,friend_username) VALUES (?, ?)");
+        stmt->setString(1, first);        
+        stmt->setString(2, second);
+        stmt->executeUpdate();
+
+        delete stmt;
+        stmt=nullptr;
+
+        delete con;
+        con=nullptr;
+
+        addFriendEdge(username1, username2);
+        cout<<"Friendship saved successfully.\n";
+        return true;
+    }
+    catch(sql::SQLException& e)
+    {
+        cerr<<"MySQL error saving friendship:"<<e.what()<<'\n';
+        delete stmt;
+        stmt=nullptr;
+        delete con;
+        con=nullptr;
+
+        return false;
+    }
+}
+
+
